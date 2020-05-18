@@ -281,6 +281,15 @@ static void initCube() {
 	glEnableVertexAttribArray(vertexPositionLoc2);
 }
 
+static int getMaxIndex()
+{
+	for(int i = MAX_SATELITES - 1; i >= 0; i--)
+	{
+		if(satelitesArray[i].free == false) { return i + 1; }
+	}
+	return 0;
+}
+
 static void initializeSatelites()
 {
 	for(int i = 0; i < MAX_SATELITES; i++)
@@ -297,7 +306,6 @@ static void createSatelite()
 		if(satelitesArray[i].free == true){ freeSpace = i; break;}
 	}
 	satelitesArray[freeSpace].matrix = modelMatrix;
-	//satelitesArray[freeSpace].fatherSatelite = modelMatrix;
 	satelitesArray[freeSpace].fatherSateliteN = selected;
 	satelitesArray[freeSpace].position.x = cameraPos[0];
 	satelitesArray[freeSpace].position.y = 0.0;
@@ -312,17 +320,18 @@ static void createSatelite()
 	satelitesArray[freeSpace].d = sqrt(pow(cameraPos[0], 2) + pow(cameraPos[1], 2));
 	satelitesArray[freeSpace].free = false;
 
-	currentSatelites++;
+	currentSatelites = getMaxIndex();
 }
 static void killChildren(int father);
 
 static void removeSatelite(int n)
 {
-	if(currentSatelites < 1) { return; }
+	if(n == 0) { return ; }
 	killChildren(n);
 	satelitesArray[n].free = true;
 	if(n == selected) { selected = 0; }
-	currentSatelites--;
+	currentSatelites = getMaxIndex();
+
 	printf("removing satelite");
 }
 
@@ -491,6 +500,8 @@ static double clamp(double n, double lower, double upper)
 	return n;
 }
 
+
+
 static void displayFunc() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -657,39 +668,40 @@ static void displayFunc() {
 	cleanseThisMortalWorld();
 	for(int i = 0; i < currentSatelites; i++)
 	{
-		mIdentity(&satelitesArray[i].matrix);
+		satelitesArray[i].matrix = satelitesArray[satelitesArray[i].fatherSateliteN].matrix;
 		if(gravity == true)
 		{
+
 			globalAngle -= 0.01;
-
-			satelitesArray[i].matrix = satelitesArray[satelitesArray[i].fatherSateliteN].matrix;
-
 			if(satelitesArray[i].fatherSateliteN == satelitesArray[i].thisSatelite) // MAIN STAR
 			{
+				mIdentity(&satelitesArray[i].matrix);
 				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
 				rotateY(&satelitesArray[i].matrix, globalAngle * 0.25);
 			}
 			else
 			{
+				mIdentity(&satelitesArray[i].matrix);
+				satelitesArray[i].matrix = satelitesArray[satelitesArray[i].fatherSateliteN].matrix;
 				rotateY(&satelitesArray[i].matrix, globalAngle * clamp((rangoTraslacion - satelitesArray[i].d) / (rangoTraslacion / 5.0), 0.1, 5.0)); // Traslacion
 				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
 				rotateY(&satelitesArray[i].matrix, globalAngle * clamp((satelitesArray[i].dimensions.x / 5), 1, 5)); // Rotacion
 			}
 			scale(&satelitesArray[i].matrix, satelitesArray[i].dimensions.x, satelitesArray[i].dimensions.y, satelitesArray[i].dimensions.z);
+			glUniformMatrix4fv(modelMatrixLoc2, 1, true, satelitesArray[i].matrix.values);
 			if(i == selected) { glUniform3f(modelColorLoc2, 1, 0, 0); }
 			else { glUniform3f(modelColorLoc2, 0, 1, 0); }
-			glUniformMatrix4fv(modelMatrixLoc2, 1, true, satelitesArray[i].matrix.values);
-			glUniform3f(modelColorLoc2, 0, 1, 0);
 		}
 		else // GRAVITY OFF
 		{
-			mIdentity(&modelMatrix);
-			translate(&modelMatrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
-			scale(&modelMatrix, satelitesArray[i].dimensions.x, satelitesArray[i].dimensions.y, satelitesArray[i].dimensions.z);
-			glUniformMatrix4fv(modelMatrixLoc2, 1, true, modelMatrix.values);
+			mIdentity(&satelitesArray[i].matrix);
+			translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
+			scale(&satelitesArray[i].matrix, satelitesArray[i].dimensions.x, satelitesArray[i].dimensions.y, satelitesArray[i].dimensions.z);
+			glUniformMatrix4fv(modelMatrixLoc2, 1, true, satelitesArray[i].matrix.values);
 			if(i == selected) { glUniform3f(modelColorLoc2, 1, 0, 0); }
 			else { glUniform3f(modelColorLoc2, 0, 1, 0); }
 		}
+
 		glBindVertexArray(cubeVA);
 		if(satelitesArray[i].free) continue;
 		glDrawArrays(GL_TRIANGLES, 0, 36);
@@ -811,6 +823,7 @@ int main(int argc, char **argv)
     glEnable(GL_DEPTH_TEST);
     glutSetCursor(GLUT_CURSOR_NONE);
     initializeSatelites();
+    createSatelite();
     initTextures();
     initShaders();
     initLights();
