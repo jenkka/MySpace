@@ -42,7 +42,7 @@ static vec2 windowInfo	  = { 800, 800};
 
 static float rotationSpeed = 0.1;
 static float cameraSpeed     = 1;
-static vec3 cameraPos = {0.0, 0.0, 5.0};
+static vec3 cameraPos = {0.0, 0.0, 0.0};
 static float cameraAngleX, cameraAngleY, cameraAngleZ  = 0;
 static vec3 pointPos = {0.0, 0.0, 1.0};
 
@@ -75,11 +75,9 @@ typedef struct {
 	Vec3 color; 	//TO DO: textureID
 	Vec3 dimensions;
 	Mat4 matrix;
-	Mat4 fatherSatelite;
 	int fatherSateliteN;
 	int thisSatelite;
 	double d;
-	bool firstDraw;
 	bool free;
 } Satelite;
 
@@ -299,7 +297,8 @@ static void createSatelite()
 		if(satelitesArray[i].free == true){ freeSpace = i; break;}
 	}
 	satelitesArray[freeSpace].matrix = modelMatrix;
-	satelitesArray[freeSpace].fatherSatelite = modelMatrix;
+	//satelitesArray[freeSpace].fatherSatelite = modelMatrix;
+	satelitesArray[freeSpace].fatherSateliteN = selected;
 	satelitesArray[freeSpace].position.x = cameraPos[0];
 	satelitesArray[freeSpace].position.y = 0.0;
 	satelitesArray[freeSpace].position.z = cameraPos[2];
@@ -311,8 +310,6 @@ static void createSatelite()
 	satelitesArray[freeSpace].dimensions.z = 1;
 	satelitesArray[freeSpace].thisSatelite = freeSpace;
 	satelitesArray[freeSpace].d = sqrt(pow(cameraPos[0], 2) + pow(cameraPos[1], 2));
-	satelitesArray[freeSpace].fatherSateliteN = selected;
-	satelitesArray[freeSpace].firstDraw = true;
 	satelitesArray[freeSpace].free = false;
 
 	currentSatelites++;
@@ -324,7 +321,6 @@ static void removeSatelite(int n)
 	if(currentSatelites < 1) { return; }
 	killChildren(n);
 	satelitesArray[n].free = true;
-	satelitesArray[n].firstDraw = 1;
 	if(n == selected) { selected = 0; }
 	currentSatelites--;
 	printf("removing satelite");
@@ -365,7 +361,6 @@ static void cleanseThisMortalWorld()
 	{
 		if(satelitesArray[satelitesArray[i].fatherSateliteN].free == true) { removeSatelite(i);  }
 	}
-	printf("%d", currentSatelites);
 }
 
 static void gravityIsAThingNow()
@@ -660,54 +655,29 @@ static void displayFunc() {
 	static float rangoTraslacion = 500.0;
 
 	cleanseThisMortalWorld();
-	//printf("Current Spheres: %d\n", currentSatelites);
 	for(int i = 0; i < currentSatelites; i++)
 	{
+		mIdentity(&satelitesArray[i].matrix);
 		if(gravity == true)
 		{
-			mIdentity(&satelitesArray[i].matrix);
-			printf("gravity on\n");
-			globalAngle -= 0.1;
+			globalAngle -= 0.01;
 
-			if(satelitesArray[i].firstDraw == 1)
-			{
-				if(currentSatelites <= 1)
-				{
-					printf("Creating father\n");
-					mIdentity(&modelMatrix);
-					satelitesArray[i].matrix = modelMatrix;
-					satelitesArray[i].fatherSatelite = satelitesArray[0].matrix;
-				}
-				else
-				{
-					satelitesArray[i].fatherSatelite = satelitesArray[selected].matrix;
-					satelitesArray[i].matrix = satelitesArray[i].fatherSatelite;
-					mIdentity(&satelitesArray[i].matrix);
-				}
-				satelitesArray[i].firstDraw = 0;
-			}
+			satelitesArray[i].matrix = satelitesArray[satelitesArray[i].fatherSateliteN].matrix;
 
-			if(satelitesArray[i].fatherSateliteN == satelitesArray[i].thisSatelite)
+			if(satelitesArray[i].fatherSateliteN == satelitesArray[i].thisSatelite) // MAIN STAR
 			{
-				mIdentity(&satelitesArray[i].matrix);
-				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, 0.0, satelitesArray[i].position.z);
+				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
 				rotateY(&satelitesArray[i].matrix, globalAngle * 0.25);
 			}
 			else
 			{
-				if(gravity == true) { satelitesArray[i].matrix = satelitesArray[i].fatherSatelite; }
-
-
-				//printf("Satelite:%d, %lf\n", i, clamp((rangoTraslacion - satelitesArray[i].distance) / 50.0, 0.1, 5.0));
-				//printf("clampin");
 				rotateY(&satelitesArray[i].matrix, globalAngle * clamp((rangoTraslacion - satelitesArray[i].d) / (rangoTraslacion / 5.0), 0.1, 5.0)); // Traslacion
-				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, 0.0, satelitesArray[i].position.z);
+				translate(&satelitesArray[i].matrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
 				rotateY(&satelitesArray[i].matrix, globalAngle * clamp((satelitesArray[i].dimensions.x / 5), 1, 5)); // Rotacion
 			}
 			scale(&satelitesArray[i].matrix, satelitesArray[i].dimensions.x, satelitesArray[i].dimensions.y, satelitesArray[i].dimensions.z);
 			if(i == selected) { glUniform3f(modelColorLoc2, 1, 0, 0); }
 			else { glUniform3f(modelColorLoc2, 0, 1, 0); }
-
 			glUniformMatrix4fv(modelMatrixLoc2, 1, true, satelitesArray[i].matrix.values);
 			glUniform3f(modelColorLoc2, 0, 1, 0);
 		}
@@ -717,11 +687,9 @@ static void displayFunc() {
 			translate(&modelMatrix, satelitesArray[i].position.x, satelitesArray[i].position.y, satelitesArray[i].position.z);
 			scale(&modelMatrix, satelitesArray[i].dimensions.x, satelitesArray[i].dimensions.y, satelitesArray[i].dimensions.z);
 			glUniformMatrix4fv(modelMatrixLoc2, 1, true, modelMatrix.values);
-
 			if(i == selected) { glUniform3f(modelColorLoc2, 1, 0, 0); }
 			else { glUniform3f(modelColorLoc2, 0, 1, 0); }
 		}
-
 		glBindVertexArray(cubeVA);
 		if(satelitesArray[i].free) continue;
 		glDrawArrays(GL_TRIANGLES, 0, 36);
